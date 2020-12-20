@@ -274,8 +274,6 @@ bool NimBLEScan::start(uint32_t duration, void (*scanCompleteCB)(NimBLEScanResul
 
     // Save the callback to be invoked when the scan completes.
     m_scanCompleteCB = scanCompleteCB;
-    // Save the duration in the case that the host is reset so we can reuse it.
-    m_duration = duration;
 
     // If 0 duration specified then we assume a continuous scan is desired.
     if(duration == 0){
@@ -378,14 +376,6 @@ void NimBLEScan::erase(const NimBLEAddress &address) {
             break;
         }
     }
-}
-
-
-/**
- * @brief If the host reset the scan will have stopped so we should set the flag as stopped.
- */
-void NimBLEScan::onHostReset() {
-    m_stopped = true;
 }
 
 

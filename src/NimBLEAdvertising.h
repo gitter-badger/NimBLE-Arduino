@@ -108,7 +108,8 @@ private:
     bool                    m_advDataSet;
     void                    (*m_advCompCB)(NimBLEAdvertising *pAdv);
     uint8_t                 m_slaveItvl[4];
-
+    bool                    m_isActive;
+    uint32_t                m_duration;
 };
 
 #endif // #if defined(CONFIG_BT_NIMBLE_ROLE_PERIPHERAL)

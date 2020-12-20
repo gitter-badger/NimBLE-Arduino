@@ -82,7 +82,6 @@ private:
     NimBLEScan();
     ~NimBLEScan();
     static int          handleGapEvent(ble_gap_event*  event, void* arg);
-    void                onHostReset();
 
     NimBLEAdvertisedDeviceCallbacks*    m_pAdvertisedDeviceCallbacks = nullptr;
     void                                (*m_scanCompleteCB)(NimBLEScanResults scanResults);
@@ -91,7 +90,6 @@ private:
     bool                                m_stopped;
     bool                                m_wantDuplicates;
     NimBLEScanResults                   m_scanResults;
-    uint32_t                            m_duration;
     ble_task_data_t                     *m_pTaskData;
 };
 
