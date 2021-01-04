@@ -67,7 +67,7 @@ public:
     NimBLEScan*     getScan();
     size_t          getServiceDataCount();
     std::string     getServiceData(uint8_t index = 0);
-    std::string     getServiceData(const NimBLEUUID &uuid) const;
+    std::string     getServiceData(const NimBLEUUID &uuid);
 
     /**
      * @brief A template to convert the service data to <tt><type\></tt>.
@@ -111,7 +111,7 @@ public:
     size_t          getPayloadLength();
     uint8_t         getAddressType();
     time_t          getTimestamp();
-    bool            isAdvertisingService(const NimBLEUUID &uuid) const;
+    bool            isAdvertisingService(const NimBLEUUID &uuid);
     bool            haveAppearance();
     bool            haveManufacturerData();
     bool            haveName();
@@ -124,7 +124,20 @@ public:
 private:
     friend class NimBLEScan;
 
-    void parseAdvertisement(uint8_t* payload, uint8_t length);
+ /*   typedef enum {
+        SERVICE_UUID =  0x0001,
+        SERVICE_DATA =  0x0002,
+        APPEARANCE   =  0x0004,
+        NAME         =  0x0008,
+        MFG_DATA     =  0x0010,
+        TX_POWER     =  0x0020,
+        SLAVE_ITVL   =  0x0040,
+        TGT_ADDRESS  =  0x0080,
+        ADV_ITVL     =  0x0100,
+        URI          =  0x0200,
+    } ADV_FLAG;*/
+
+    void parseAdvertisement();
     void setAddress(NimBLEAddress address);
     void setAdvType(uint8_t advType);
     void setAppearance(uint16_t appearance);
@@ -135,6 +148,9 @@ private:
     void setServiceUUID(const char* serviceUUID);
     void setServiceUUID(NimBLEUUID serviceUUID);
     void setTXPower(int8_t txPower);
+    void setPayload(uint8_t *payload, uint8_t length, bool append);
+    int  findAdvField(uint8_t type, uint8_t index = 0, uint8_t *data_loc=nullptr);
+    uint8_t findServiceData(uint8_t index, uint8_t* bytes);
 
     bool m_haveAppearance;
     bool m_haveManufacturerData;
@@ -152,11 +168,10 @@ private:
     std::string     m_name;
     int             m_rssi;
     int8_t          m_txPower;
-    uint8_t*        m_payload;
-    size_t          m_payloadLength;
     time_t          m_timestamp;
     bool            m_callbackSent;
 
+    std::vector<uint8_t>    m_payload;
     std::vector<NimBLEUUID> m_serviceUUIDs;
     std::vector<std::pair<NimBLEUUID, std::string>>m_serviceDataVec;
 };

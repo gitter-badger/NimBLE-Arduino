@@ -94,25 +94,33 @@ NimBLEScan::~NimBLEScan() {
                 advertisedDevice->setAdvType(event->disc.event_type);
                 pScan->m_scanResults.m_advertisedDevicesVector.push_back(advertisedDevice);
                 NIMBLE_LOGI(LOG_TAG, "NEW DEVICE FOUND: %s", advertisedAddress.toString().c_str());
+            } else {
+                //NIMBLE_LOGI(LOG_TAG, "UPDATING PREVIOUSLY FOUND DEVICE: %s", advertisedAddress.toString().c_str());
             }
-            else{
-                NIMBLE_LOGI(LOG_TAG, "UPDATING PREVIOUSLY FOUND DEVICE: %s", advertisedAddress.toString().c_str());
-            }
-            advertisedDevice->setRSSI(event->disc.rssi);
-            if(event->disc.length_data > 0) {
-                advertisedDevice->parseAdvertisement(event->disc.data, event->disc.length_data);
-            }
+
             advertisedDevice->m_timestamp = time(nullptr);
+            advertisedDevice->setRSSI(event->disc.rssi);
+
+            if(event->disc.length_data > 0) {
+                if(event->disc.event_type != BLE_HCI_ADV_RPT_EVTYPE_SCAN_RSP) {
+                    advertisedDevice->setPayload(event->disc.data, event->disc.length_data, false);
+                } else {
+                    advertisedDevice->setPayload(event->disc.data, event->disc.length_data, true);
+                }
+            }
+
 
             if (pScan->m_pAdvertisedDeviceCallbacks) {
                 if(pScan->m_wantDuplicates || !advertisedDevice->m_callbackSent) {
                     // If not active scanning report the result to the listener.
                     if(pScan->m_scan_params.passive || event->disc.event_type == BLE_HCI_ADV_TYPE_ADV_NONCONN_IND) {
+                        //advertisedDevice->parseAdvertisement();
                         advertisedDevice->m_callbackSent = true;
                         pScan->m_pAdvertisedDeviceCallbacks->onResult(advertisedDevice);
 
                     // Otherwise wait for the scan response so we can report all of the data at once.
                     } else if (event->disc.event_type == BLE_HCI_ADV_RPT_EVTYPE_SCAN_RSP) {
+                        //advertisedDevice->parseAdvertisement();
                         advertisedDevice->m_callbackSent = true;
                         pScan->m_pAdvertisedDeviceCallbacks->onResult(advertisedDevice);
                     }
@@ -124,6 +132,16 @@ NimBLEScan::~NimBLEScan() {
         case BLE_GAP_EVENT_DISC_COMPLETE: {
             NIMBLE_LOGD(LOG_TAG, "discovery complete; reason=%d",
                     event->disc_complete.reason);
+
+            // If a device advertised with scan reponse available and was not received
+            // the callback would not have been called, so call it here.
+            if(pScan->m_pAdvertisedDeviceCallbacks) {
+                for(auto &it : pScan->m_scanResults.m_advertisedDevicesVector) {
+                    if(!it->m_callbackSent) {
+                        pScan->m_pAdvertisedDeviceCallbacks->onResult(it);
+                    }
+                }
+            }
 
             pScan->m_stopped = true;
 
