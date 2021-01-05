@@ -114,13 +114,11 @@ NimBLEScan::~NimBLEScan() {
                 if(pScan->m_wantDuplicates || !advertisedDevice->m_callbackSent) {
                     // If not active scanning report the result to the listener.
                     if(pScan->m_scan_params.passive || event->disc.event_type == BLE_HCI_ADV_TYPE_ADV_NONCONN_IND) {
-                        //advertisedDevice->parseAdvertisement();
                         advertisedDevice->m_callbackSent = true;
                         pScan->m_pAdvertisedDeviceCallbacks->onResult(advertisedDevice);
 
                     // Otherwise wait for the scan response so we can report all of the data at once.
                     } else if (event->disc.event_type == BLE_HCI_ADV_RPT_EVTYPE_SCAN_RSP) {
-                        //advertisedDevice->parseAdvertisement();
                         advertisedDevice->m_callbackSent = true;
                         pScan->m_pAdvertisedDeviceCallbacks->onResult(advertisedDevice);
                     }

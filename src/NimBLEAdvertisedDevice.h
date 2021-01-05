@@ -124,56 +124,20 @@ public:
 private:
     friend class NimBLEScan;
 
- /*   typedef enum {
-        SERVICE_UUID =  0x0001,
-        SERVICE_DATA =  0x0002,
-        APPEARANCE   =  0x0004,
-        NAME         =  0x0008,
-        MFG_DATA     =  0x0010,
-        TX_POWER     =  0x0020,
-        SLAVE_ITVL   =  0x0040,
-        TGT_ADDRESS  =  0x0080,
-        ADV_ITVL     =  0x0100,
-        URI          =  0x0200,
-    } ADV_FLAG;*/
-
-    void parseAdvertisement();
     void setAddress(NimBLEAddress address);
     void setAdvType(uint8_t advType);
-    void setAppearance(uint16_t appearance);
-    void setManufacturerData(std::string manufacturerData);
-    void setName(std::string name);
-    void setRSSI(int rssi);
-    void setServiceData(NimBLEUUID serviceUUID, std::string data);
-    void setServiceUUID(const char* serviceUUID);
-    void setServiceUUID(NimBLEUUID serviceUUID);
-    void setTXPower(int8_t txPower);
     void setPayload(uint8_t *payload, uint8_t length, bool append);
+    void setRSSI(int rssi);
     int  findAdvField(uint8_t type, uint8_t index = 0, uint8_t *data_loc=nullptr);
     uint8_t findServiceData(uint8_t index, uint8_t* bytes);
 
-    bool m_haveAppearance;
-    bool m_haveManufacturerData;
-    bool m_haveName;
-    bool m_haveRSSI;
-    bool m_haveServiceData;
-    bool m_haveServiceUUID;
-    bool m_haveTXPower;
-
-
     NimBLEAddress   m_address = NimBLEAddress("");
     uint8_t         m_advType;
-    uint16_t        m_appearance;
-    std::string     m_manufacturerData;
-    std::string     m_name;
     int             m_rssi;
-    int8_t          m_txPower;
     time_t          m_timestamp;
     bool            m_callbackSent;
 
     std::vector<uint8_t>    m_payload;
-    std::vector<NimBLEUUID> m_serviceUUIDs;
-    std::vector<std::pair<NimBLEUUID, std::string>>m_serviceDataVec;
 };
 
 /**
