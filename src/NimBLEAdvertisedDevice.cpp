@@ -33,6 +33,7 @@ NimBLEAdvertisedDevice::NimBLEAdvertisedDevice() : m_payload(62,0) {
     m_rssi             = -9999;
     m_callbackSent     = false;
     m_timestamp        = 0;
+    m_advLength        = 0;
 
 } // NimBLEAdvertisedDevice
 
@@ -590,10 +591,20 @@ uint8_t* NimBLEAdvertisedDevice::getPayload() {
  */
 void NimBLEAdvertisedDevice::setPayload(uint8_t *payload, uint8_t length, bool append) {
     if(!append) {
+        m_advLength = length;
         m_payload.assign(payload, payload + length);
     } else {
         m_payload.insert(m_payload.end(), payload, payload + length);
     }
+}
+
+
+/**
+ * @brief Get the length of the advertisement data in the payload.
+ * @return The number of bytes in the payload that is from the advertisment.
+ */
+uint8_t NimBLEAdvertisedDevice::getAdvLength() {
+    return m_advLength;
 }
 
 

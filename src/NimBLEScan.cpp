@@ -64,7 +64,7 @@ NimBLEScan::~NimBLEScan() {
 
         case BLE_GAP_EVENT_DISC: {
             if(pScan->m_stopped) {
-                NIMBLE_LOGE(LOG_TAG, "Scan stop called, ignoring results.");
+                NIMBLE_LOGW(LOG_TAG, "Scan stop called, ignoring results.");
                 return 0;
             }
 
@@ -93,9 +93,9 @@ NimBLEScan::~NimBLEScan() {
                 advertisedDevice->setAddress(advertisedAddress);
                 advertisedDevice->setAdvType(event->disc.event_type);
                 pScan->m_scanResults.m_advertisedDevicesVector.push_back(advertisedDevice);
-                NIMBLE_LOGI(LOG_TAG, "NEW DEVICE FOUND: %s", advertisedAddress.toString().c_str());
+                NIMBLE_LOGI(LOG_TAG, "New advertiser: %s", advertisedAddress.toString().c_str());
             } else {
-                //NIMBLE_LOGI(LOG_TAG, "UPDATING PREVIOUSLY FOUND DEVICE: %s", advertisedAddress.toString().c_str());
+                NIMBLE_LOGI(LOG_TAG, "Updated advertiser: %s", advertisedAddress.toString().c_str());
             }
 
             advertisedDevice->m_timestamp = time(nullptr);
@@ -112,12 +112,16 @@ NimBLEScan::~NimBLEScan() {
 
             if (pScan->m_pAdvertisedDeviceCallbacks) {
                 if(pScan->m_wantDuplicates || !advertisedDevice->m_callbackSent) {
-                    // If not active scanning report the result to the listener.
-                    if(pScan->m_scan_params.passive || event->disc.event_type == BLE_HCI_ADV_TYPE_ADV_NONCONN_IND) {
+                    // If not active scanning or scan response is not available
+                    // report the result to the callback now.
+                    if(pScan->m_scan_params.passive ||
+                      (event->disc.event_type != BLE_HCI_ADV_TYPE_ADV_IND &&
+                       event->disc.event_type != BLE_HCI_ADV_TYPE_ADV_SCAN_IND))
+                    {
                         advertisedDevice->m_callbackSent = true;
                         pScan->m_pAdvertisedDeviceCallbacks->onResult(advertisedDevice);
 
-                    // Otherwise wait for the scan response so we can report all of the data at once.
+                    // Otherwise, wait for the scan response so we can report the complete data.
                     } else if (event->disc.event_type == BLE_HCI_ADV_RPT_EVTYPE_SCAN_RSP) {
                         advertisedDevice->m_callbackSent = true;
                         pScan->m_pAdvertisedDeviceCallbacks->onResult(advertisedDevice);
@@ -129,10 +133,12 @@ NimBLEScan::~NimBLEScan() {
         }
         case BLE_GAP_EVENT_DISC_COMPLETE: {
             NIMBLE_LOGD(LOG_TAG, "discovery complete; reason=%d",
-                    event->disc_complete.reason);
+                        event->disc_complete.reason);
 
-            // If a device advertised with scan reponse available and was not received
-            // the callback would not have been called, so call it here.
+            pScan->m_stopped = true;
+
+            // If a device advertised with scan reponse available and it was not received
+            // the callback would not have been invoked, so do it here.
             if(pScan->m_pAdvertisedDeviceCallbacks) {
                 for(auto &it : pScan->m_scanResults.m_advertisedDevicesVector) {
                     if(!it->m_callbackSent) {
@@ -140,8 +146,6 @@ NimBLEScan::~NimBLEScan() {
                     }
                 }
             }
-
-            pScan->m_stopped = true;
 
             if (pScan->m_scanCompleteCB != nullptr) {
                 pScan->m_scanCompleteCB(pScan->m_scanResults);
@@ -301,8 +305,8 @@ bool NimBLEScan::start(uint32_t duration, void (*scanCompleteCB)(NimBLEScanResul
         duration = duration*1000; // convert duration to milliseconds
     }
 
-    //  if we are connecting to devices that are advertising even after being connected, multiconnecting peripherals
-    //  then we should not clear vector or we will connect the same device few times
+    // if this is a continuation of the previous scan and the application wants to
+    // save the reults we will not clear the vector.
     if(!is_continue) {
         clearResults();
     }
@@ -318,7 +322,7 @@ bool NimBLEScan::start(uint32_t duration, void (*scanCompleteCB)(NimBLEScanResul
 
     if (rc != 0 && rc != BLE_HS_EDONE) {
         NIMBLE_LOGE(LOG_TAG, "Error initiating GAP discovery procedure; rc=%d, %s",
-                                        rc, NimBLEUtils::returnCodeToString(rc));
+                    rc, NimBLEUtils::returnCodeToString(rc));
         m_stopped = true;
         return false;
     }
@@ -360,7 +364,7 @@ bool NimBLEScan::stop() {
 
     int rc = ble_gap_disc_cancel();
     if (rc != 0 && rc != BLE_HS_EALREADY) {
-        NIMBLE_LOGE(LOG_TAG, "Failed to cancel scan; rc=%d\n", rc);
+        NIMBLE_LOGE(LOG_TAG, "Failed to cancel scan; rc=%d", rc);
         return false;
     }
 
@@ -385,7 +389,7 @@ bool NimBLEScan::stop() {
  * @details After disconnecting, it may be required in the case we were connected to a device without a public address.
  */
 void NimBLEScan::erase(const NimBLEAddress &address) {
-    NIMBLE_LOGI(LOG_TAG, "erase device: %s", address.toString().c_str());
+    NIMBLE_LOGD(LOG_TAG, "erase device: %s", address.toString().c_str());
 
     for(auto it = m_scanResults.m_advertisedDevicesVector.begin(); it != m_scanResults.m_advertisedDevicesVector.end(); ++it) {
         if((*it)->getAddress() == address) {
