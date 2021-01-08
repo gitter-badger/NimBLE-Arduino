@@ -34,7 +34,6 @@ NimBLEAdvertisedDevice::NimBLEAdvertisedDevice() : m_payload(62,0) {
     m_callbackSent     = false;
     m_timestamp        = 0;
     m_advLength        = 0;
-
 } // NimBLEAdvertisedDevice
 
 
@@ -73,7 +72,7 @@ uint16_t NimBLEAdvertisedDevice::getAppearance() {
     uint8_t data_loc = 0;
     if(findAdvField(BLE_HS_ADV_TYPE_APPEARANCE, 0, &data_loc) > 0) {
         ble_hs_adv_field *field = (ble_hs_adv_field *)&m_payload[data_loc];
-        if(field->length != BLE_HS_ADV_APPEARANCE_LEN + 1) {
+        if(field->length == BLE_HS_ADV_APPEARANCE_LEN + 1) {
             uint16_t appearanceVal;
             memcpy(&appearanceVal, field->value, 2);
             return appearanceVal;
@@ -442,7 +441,7 @@ bool NimBLEAdvertisedDevice::haveTXPower() {
 } // haveTXPower
 
 
-int NimBLEAdvertisedDevice::findAdvField(uint8_t type, uint8_t index, uint8_t *data_loc/*ble_hs_adv_field *out_field*/) {
+int NimBLEAdvertisedDevice::findAdvField(uint8_t type, uint8_t index, uint8_t *data_loc) {
     ble_hs_adv_field *field = nullptr;
     uint8_t data = 0;
     uint8_t length = m_payload.size();
@@ -481,7 +480,7 @@ int NimBLEAdvertisedDevice::findAdvField(uint8_t type, uint8_t index, uint8_t *d
                     break;
             }
 
-           // NIMBLE_LOGE(LOG_TAG, "Found field %d = %d, length %d value %02x pointer %p count %d", field->type, type, field->length, *field->value, field->value, count);
+            NIMBLE_LOGE(LOG_TAG, "Found field %d = %d, length %d value %02x pointer %p count %d", field->type, type, field->length, *field->value, field->value, count);
             if(data_loc != nullptr) {
                 if(index == 0 || count == index) {
                     break;
