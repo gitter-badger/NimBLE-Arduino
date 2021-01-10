@@ -125,12 +125,13 @@ public:
 private:
     friend class NimBLEScan;
 
-    void setAddress(NimBLEAddress address);
-    void setAdvType(uint8_t advType);
-    void setPayload(uint8_t *payload, uint8_t length, bool append);
-    void setRSSI(int rssi);
-    int  findAdvField(uint8_t type, uint8_t index = 0, uint8_t *data_loc=nullptr);
+    void    setAddress(NimBLEAddress address);
+    void    setAdvType(uint8_t advType);
+    void    setPayload(uint8_t *payload, uint8_t length, bool append);
+    void    setRSSI(int rssi);
+    uint8_t findAdvField(uint8_t type, uint8_t index = 0, uint8_t *data_loc=nullptr);
     uint8_t findServiceData(uint8_t index, uint8_t* bytes);
+    bool    findUuidInField(const NimBLEUUID &uuid, const uint8_t data_loc) const;
 
     NimBLEAddress   m_address = NimBLEAddress("");
     uint8_t         m_advType;
