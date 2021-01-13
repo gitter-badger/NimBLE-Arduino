@@ -38,9 +38,10 @@ NimBLEScan::NimBLEScan() {
     m_scan_params.limited            = 0; // If set, only discover devices in limited discoverable mode.
     m_scan_params.filter_duplicates  = 0; // If set, the controller ignores all but the first advertisement from each device.
     m_pAdvertisedDeviceCallbacks     = nullptr;
-    m_stopped                        = true;
+    m_ignoreResults                  = false;
     m_wantDuplicates                 = false;
     m_pTaskData                      = nullptr;
+    m_duration                       = BLE_HS_FOREVER; // make sure this is non-zero in the event of a host reset
 }
 
 
@@ -63,8 +64,8 @@ NimBLEScan::~NimBLEScan() {
     switch(event->type) {
 
         case BLE_GAP_EVENT_DISC: {
-            if(pScan->m_stopped) {
-                NIMBLE_LOGW(LOG_TAG, "Scan stop called, ignoring results.");
+            if(pScan->m_ignoreResults) {
+                NIMBLE_LOGE(LOG_TAG, "Scan op in progress - ignoring results");
                 return 0;
             }
 
@@ -259,7 +260,7 @@ void NimBLEScan::setWindow(uint16_t windowMSecs) {
  * @return true if scanning or scan starting.
  */
 bool NimBLEScan::isScanning() {
-    return !m_stopped;
+    return ble_gap_disc_active();
 }
 
 
@@ -273,25 +274,6 @@ bool NimBLEScan::isScanning() {
 bool NimBLEScan::start(uint32_t duration, void (*scanCompleteCB)(NimBLEScanResults), bool is_continue) {
     NIMBLE_LOGD(LOG_TAG, ">> start(duration=%d)", duration);
 
-    // If Host is not synced we cannot start scanning.
-    if(!NimBLEDevice::m_synced) {
-        NIMBLE_LOGC(LOG_TAG, "Host reset, wait for sync.");
-        return false;
-    }
-
-    if(ble_gap_conn_active()) {
-        NIMBLE_LOGE(LOG_TAG, "Connection in progress - must wait.");
-        return false;
-    }
-
-    // If we are already scanning don't start again
-    if(!m_stopped || ble_gap_disc_active()) { // double check - can cause host reset.
-        NIMBLE_LOGE(LOG_TAG, "Scan already in progress");
-        return false;
-    }
-
-    m_stopped = false;
-
     // Save the callback to be invoked when the scan completes.
     m_scanCompleteCB = scanCompleteCB;
 
@@ -300,32 +282,51 @@ bool NimBLEScan::start(uint32_t duration, void (*scanCompleteCB)(NimBLEScanResul
         duration = BLE_HS_FOREVER;
     }
     else{
-        duration = duration*1000; // convert duration to milliseconds
+        // convert duration to milliseconds
+        duration = duration * 1000;
     }
 
-    // if this is a continuation of the previous scan and the application wants to
-    // save the reults we will not clear the vector.
+    // Set the flag to ignore the results while we are deleting the vector
     if(!is_continue) {
-        clearResults();
+        m_ignoreResults = true;
     }
 
-    int rc = 0;
-    do{
-        rc = ble_gap_disc(m_own_addr_type, duration, &m_scan_params,
-                                    NimBLEScan::handleGapEvent, this);
-        if(rc == BLE_HS_EBUSY) {
-            vTaskDelay(1 / portTICK_PERIOD_MS);
-        }
-    } while(rc == BLE_HS_EBUSY);
+    int rc = ble_gap_disc(m_own_addr_type, duration, &m_scan_params,
+                          NimBLEScan::handleGapEvent, this);
 
-    if (rc != 0 && rc != BLE_HS_EDONE) {
-        NIMBLE_LOGE(LOG_TAG, "Error initiating GAP discovery procedure; rc=%d, %s",
-                    rc, NimBLEUtils::returnCodeToString(rc));
-        m_stopped = true;
+    switch(rc) {
+        case 0:
+            if(!is_continue) {
+                clearResults();
+            }
+            break;
+
+        case BLE_HS_EALREADY:
+            break;
+
+        case BLE_HS_EBUSY:
+            NIMBLE_LOGE(LOG_TAG, "Unable to scan - connection in progress.");
+            break;
+
+        case BLE_HS_ETIMEOUT_HCI:
+        case BLE_HS_EOS:
+        case BLE_HS_ECONTROLLER:
+        case BLE_HS_ENOTSYNCED:
+            NIMBLE_LOGC(LOG_TAG, "Unable to scan - Host Reset");
+            break;
+
+        default:
+            NIMBLE_LOGE(LOG_TAG, "Error initiating GAP discovery procedure; rc=%d, %s",
+                        rc, NimBLEUtils::returnCodeToString(rc));
+            break;
+    }
+
+    m_ignoreResults = false;
+    NIMBLE_LOGD(LOG_TAG, "<< start()");
+
+    if(rc != 0 && rc != BLE_HS_EALREADY) {
         return false;
     }
-
-    NIMBLE_LOGD(LOG_TAG, "<< start()");
     return true;
 } // start
 
@@ -366,8 +367,6 @@ bool NimBLEScan::stop() {
         return false;
     }
 
-    m_stopped = true;
-
     if (rc != BLE_HS_EALREADY && m_scanCompleteCB != nullptr) {
         m_scanCompleteCB(m_scanResults);
     }
@@ -398,6 +397,26 @@ void NimBLEScan::erase(const NimBLEAddress &address) {
     }
 }
 
+
+/**
+ * @brief Called when host reset, we set a flag to stop scanning until synced.
+ */
+void NimBLEScan::onHostReset() {
+    m_ignoreResults = true;
+}
+
+
+/**
+ * @brief If the host reset and re-synced this is called.
+ * If the application was scanning indefinitely with a callback, restart it.
+ */
+void NimBLEScan::onHostSync() {
+    m_ignoreResults = false;
+
+    if(m_duration == 0 && m_pAdvertisedDeviceCallbacks != nullptr) {
+        start(m_duration, m_scanCompleteCB);
+    }
+}
 
 /**
  * @brief Get the results of the scan.

@@ -144,8 +144,8 @@ void NimBLEDevice::stopAdvertising() {
 #if defined(CONFIG_BT_NIMBLE_ROLE_CENTRAL)
 /* STATIC */ NimBLEClient* NimBLEDevice::createClient(NimBLEAddress peerAddress) {
     if(m_cList.size() >= NIMBLE_MAX_CONNECTIONS) {
-        NIMBLE_LOGW("Number of clients exceeds Max connections. Max=(%d)",
-                                            NIMBLE_MAX_CONNECTIONS);
+        NIMBLE_LOGW(LOG_TAG,"Number of clients exceeds Max connections. Cur=%d Max=%d",
+                    m_cList.size(), NIMBLE_MAX_CONNECTIONS);
     }
 
     NimBLEClient* pClient = new NimBLEClient(peerAddress);
@@ -165,26 +165,31 @@ void NimBLEDevice::stopAdvertising() {
         return false;
     }
 
+    // Set the connection established flag to false to stop notifications
+    // from accessing the attribute vectors while they are being deleted.
+    pClient->m_connEstablished = false;
     int rc =0;
 
-    if(pClient->m_isConnected) {
+    if(pClient->isConnected()) {
         rc = pClient->disconnect();
         if (rc != 0 && rc != BLE_HS_EALREADY && rc != BLE_HS_ENOTCONN) {
             return false;
         }
 
-        while(pClient->m_isConnected) {
-            vTaskDelay(10);
+        while(pClient->isConnected()) {
+            taskYIELD();
         }
-    }
+        // Since we set the flag to false the app will not get a callback
+        // in the disconnect event so we call it here for good measure.
+        pClient->m_pClientCallbacks->onDisconnect(pClient);
 
-    if(pClient->m_waitingToConnect) {
+    } else if(pClient->m_pTaskData != nullptr) {
         rc = ble_gap_conn_cancel();
         if (rc != 0 && rc != BLE_HS_EALREADY) {
             return false;
         }
-        while(pClient->m_waitingToConnect) {
-            vTaskDelay(10);
+        while(pClient->m_pTaskData != nullptr) {
+            taskYIELD();
         }
     }
 
@@ -407,6 +412,14 @@ void NimBLEDevice::stopAdvertising() {
 
     NIMBLE_LOGC(LOG_TAG, "Resetting state; reason=%d, %s", reason,
                         NimBLEUtils::returnCodeToString(reason));
+
+#if defined(CONFIG_BT_NIMBLE_ROLE_OBSERVER)
+    if(initialized) {
+        if(m_pScan != nullptr) {
+            m_pScan->onHostReset();
+        }
+    }
+#endif
 } // onReset
 
 
@@ -426,12 +439,22 @@ void NimBLEDevice::stopAdvertising() {
     int rc = ble_hs_util_ensure_addr(0);
     assert(rc == 0);
 
+    // Yield for houskeeping before returning to operations.
+    // Occasionally triggers exception without.
+    taskYIELD();
+
     m_synced = true;
 
     if(initialized) {
+#if defined(CONFIG_BT_NIMBLE_ROLE_OBSERVER)
+        if(m_pScan != nullptr) {
+            m_pScan->onHostSync();
+        }
+#endif
+
 #if defined(CONFIG_BT_NIMBLE_ROLE_BROADCASTER)
         if(m_bleAdvertising != nullptr) {
-            m_bleAdvertising->onHostReset();
+            m_bleAdvertising->onHostSync();
         }
 #endif
     }
